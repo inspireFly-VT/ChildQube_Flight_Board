@@ -46,6 +46,8 @@ I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
 I2C_HandleTypeDef hi2c4;
 
+UART_HandleTypeDef hlpuart1;
+
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi3;
 
@@ -62,8 +64,9 @@ static void MX_I2C2_Init(void);
 static void MX_I2C4_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_LPUART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-//#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -106,6 +109,7 @@ int main(void)
   MX_I2C4_Init();
   MX_SPI1_Init();
   MX_SPI3_Init();
+  MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -355,6 +359,41 @@ static void MX_I2C4_Init(void)
 }
 
 /**
+  * @brief LPUART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_LPUART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN LPUART1_Init 0 */
+
+  /* USER CODE END LPUART1_Init 0 */
+
+  /* USER CODE BEGIN LPUART1_Init 1 */
+
+  /* USER CODE END LPUART1_Init 1 */
+  hlpuart1.Instance = LPUART1;
+  hlpuart1.Init.BaudRate = 115200;
+  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
+  hlpuart1.Init.StopBits = UART_STOPBITS_1;
+  hlpuart1.Init.Parity = UART_PARITY_NONE;
+  hlpuart1.Init.Mode = UART_MODE_TX_RX;
+  hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_SWAP_INIT;
+  hlpuart1.AdvancedInit.Swap = UART_ADVFEATURE_SWAP_ENABLE;
+  if (HAL_UART_Init(&hlpuart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN LPUART1_Init 2 */
+
+  /* USER CODE END LPUART1_Init 2 */
+
+}
+
+/**
   * @brief SPI1 Initialization Function
   * @param None
   * @retval None
@@ -521,13 +560,13 @@ static void MX_GPIO_Init(void)
  * None
  * @retval None
  */
-//PUTCHAR_PROTOTYPE
-//{
-// /* Place your implementation of fputc here */
-// /* e.g. write a character to the USART1 and Loop until the end of transmission */
-// HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
-// return ch;
-//}
+PUTCHAR_PROTOTYPE
+{
+ /* Place your implementation of fputc here */
+ /* e.g. write a character to the USART1 and Loop until the end of transmission */
+ HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, 0xFFFF);
+ return ch;
+}
 
 /* USER CODE END 4 */
 

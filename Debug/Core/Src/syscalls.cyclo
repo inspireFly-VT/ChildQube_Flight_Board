@@ -1,4 +1,3 @@
-../Drivers/CMSIS/Include/core_cm4.h:2059:26:ITM_SendChar	4
 ../Core/Src/syscalls.c:45:6:initialise_monitor_handles	1
 ../Core/Src/syscalls.c:49:5:_getpid	1
 ../Core/Src/syscalls.c:54:5:_kill	1
