@@ -1,0 +1,2 @@
+../Drivers/Voltage_Reader/Src/battery_manager.c:16:5:read_battery_voltage	32	static
+../Drivers/Voltage_Reader/Src/battery_manager.c:35:13:read_charge_state	48	static
