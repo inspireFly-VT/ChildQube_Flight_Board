@@ -1,7 +1,7 @@
-Drivers/Voltage_Reader/Src/battery_manager.o: \
- ../Drivers/Voltage_Reader/Src/battery_manager.c \
- ../Drivers/Voltage_Reader/Src/../../Voltage_Reader/Inc/battery_manager.h \
- ../Core/Inc/main.h ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h \
+Drivers/Voltage_Reader/Src/battery_reader.o: \
+ ../Drivers/Voltage_Reader/Src/battery_reader.c \
+ ../Drivers/Voltage_Reader/Src/../Inc/battery_reader.h ../Core/Inc/main.h \
+ ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h \
  ../Core/Inc/stm32l4xx_hal_conf.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_def.h \
@@ -36,7 +36,7 @@ Drivers/Voltage_Reader/Src/battery_manager.o: \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_spi_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h
-../Drivers/Voltage_Reader/Src/../../Voltage_Reader/Inc/battery_manager.h:
+../Drivers/Voltage_Reader/Src/../Inc/battery_reader.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
 ../Core/Inc/stm32l4xx_hal_conf.h:

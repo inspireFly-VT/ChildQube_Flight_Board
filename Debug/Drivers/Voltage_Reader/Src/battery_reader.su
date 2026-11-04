@@ -1,0 +1,10 @@
+../Drivers/Voltage_Reader/Src/battery_reader.c:26:26:rd8	40	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:32:26:wr8	32	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:39:26:rd16	48	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:52:26:ensure_adc_on	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:65:19:BatteryReader_Init	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:80:19:BatteryReader_ReadVoltage_mV	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:90:19:BatteryReader_ReadCurrent_mA	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:100:19:BatteryReader_ReadState	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:108:19:BatteryReader_IsChargerPluggedIn	24	static
+../Drivers/Voltage_Reader/Src/battery_reader.c:116:13:BatteryReader_StateName	16	static

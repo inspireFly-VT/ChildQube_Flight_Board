@@ -5,13 +5,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../Drivers/Voltage_Reader/Src/battery_manager.c 
+../Drivers/Voltage_Reader/Src/battery_reader.c 
 
 OBJS += \
-./Drivers/Voltage_Reader/Src/battery_manager.o 
+./Drivers/Voltage_Reader/Src/battery_reader.o 
 
 C_DEPS += \
-./Drivers/Voltage_Reader/Src/battery_manager.d 
+./Drivers/Voltage_Reader/Src/battery_reader.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
@@ -21,7 +21,7 @@ Drivers/Voltage_Reader/Src/%.o Drivers/Voltage_Reader/Src/%.su Drivers/Voltage_R
 clean: clean-Drivers-2f-Voltage_Reader-2f-Src
 
 clean-Drivers-2f-Voltage_Reader-2f-Src:
-	-$(RM) ./Drivers/Voltage_Reader/Src/battery_manager.cyclo ./Drivers/Voltage_Reader/Src/battery_manager.d ./Drivers/Voltage_Reader/Src/battery_manager.o ./Drivers/Voltage_Reader/Src/battery_manager.su
+	-$(RM) ./Drivers/Voltage_Reader/Src/battery_reader.cyclo ./Drivers/Voltage_Reader/Src/battery_reader.d ./Drivers/Voltage_Reader/Src/battery_reader.o ./Drivers/Voltage_Reader/Src/battery_reader.su
 
 .PHONY: clean-Drivers-2f-Voltage_Reader-2f-Src
 

@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "../../Drivers/Voltage_Reader/Inc/battery_manager.h"
+#include "../../Drivers/Voltage_Reader/Inc/battery_reader.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -92,7 +92,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -116,23 +116,39 @@ int main(void)
   MX_ADC1_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  if (BatteryReader_Init(&hi2c2) != HAL_OK) {
+       printf("Battery charger chip not found on I2C2\r\n");
+   } else {
+       printf("Battery charger chip found\r\n");
+   }
+   HAL_Delay(200);   // let the charger's ADC finish its first measurement
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-	  HAL_Delay(500);
-	  int vbat = read_battery_voltage(&hadc1);
+   while (1)
+     {
+         uint32_t voltage_mv;
+         int32_t current_ma;
+         ChargerState state;
+         uint8_t plugged_in;
 
-	  printf("battery status:\n");
-	  printf("Battery Voltage: %d.%03d V\n", vbat / 1000, vbat % 1000);
-	  printf("----------------------\n");
+         if (BatteryReader_ReadVoltage_mV(&hi2c2, &voltage_mv) == HAL_OK)
+             printf("Battery voltage: %lu.%03lu V\r\n", voltage_mv / 1000, voltage_mv % 1000);
+         else
+             printf("Battery voltage: I2C read failed\r\n");
 
-	  ChargeState state = read_charge_state(&hi2c4);
-	  printf("Charge state: %d\n", state);
-	  printf("----------------------\n");
+         if (BatteryReader_ReadCurrent_mA(&hi2c2, &current_ma) == HAL_OK)
+             printf("Battery current: %ld mA\r\n", (long)current_ma);
+
+         if (BatteryReader_ReadState(&hi2c2, &state) == HAL_OK)
+             printf("Charge state: %s\r\n", BatteryReader_StateName(state));
+
+         if (BatteryReader_IsChargerPluggedIn(&hi2c2, &plugged_in) == HAL_OK)
+             printf("Charger plugged in: %s\r\n", plugged_in ? "yes" : "no");
+
+         printf("----------------------\r\n");
+         HAL_Delay(500);
 
     /* USER CODE END WHILE */
 
