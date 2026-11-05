@@ -122,6 +122,8 @@ int main(void)
        printf("Battery charger chip found\r\n");
    }
    HAL_Delay(200);   // let the charger's ADC finish its first measurement
+
+   BatteryReader_SetTempThreshold(&hi2c2, 12);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -147,8 +149,11 @@ int main(void)
          if (BatteryReader_IsChargerPluggedIn(&hi2c2, &plugged_in) == HAL_OK)
              printf("Charger plugged in: %s\r\n", plugged_in ? "yes" : "no");
 
+         BatteryReader_ReadChargeStatus3_And_Fault_Status(&hi2c2);
+
+
          printf("----------------------\r\n");
-         HAL_Delay(500);
+         HAL_Delay(1000);
 
     /* USER CODE END WHILE */
 

@@ -5,8 +5,13 @@
 #include "../Inc/battery_reader.h"
 
 /* ---- Registers (TI BQ25756E datasheet, section 7.5) ---- */
+#define REG_CHARGING_TEMP_THRESHOLD 0x1BU
 #define REG_CHARGER_STATUS_1    0x21U   /* CHARGE_STAT[2:0] */
 #define REG_CHARGER_STATUS_2    0x22U   /* PG_STAT bit 7 */
+
+#define REG_CHARGE_STATUS_3 		0x23U
+#define FAULT_STATUS 			0x24U
+
 #define REG_ADC_CONTROL         0x2BU   /* ADC_EN bit 7, ADC_RATE bit 6, ADC_SAMPLE[5:4] */
 #define REG_IBAT_ADC            0x2FU   /* 16-bit, 2's complement, 2 mA/LSB (5 mOhm sense) */
 #define REG_VBAT_ADC            0x33U   /* 16-bit, 2 mV/LSB */
@@ -93,6 +98,9 @@ HAL_StatusTypeDef BatteryReader_ReadCurrent_mA(I2C_HandleTypeDef *hi2c, int32_t 
     HAL_StatusTypeDef s = ensure_adc_on(hi2c);
     if (s != HAL_OK) return s;
     s = rd16(hi2c, REG_IBAT_ADC, &raw);
+
+    printf("[RAW CURRENT]: %d \r\n", raw);
+
     if (s == HAL_OK) *ma = (int32_t)(int16_t)raw * 2;
     return s;
 }
@@ -101,6 +109,7 @@ HAL_StatusTypeDef BatteryReader_ReadState(I2C_HandleTypeDef *hi2c, ChargerState 
 {
     uint8_t v;
     HAL_StatusTypeDef s = rd8(hi2c, REG_CHARGER_STATUS_1, &v);
+    printf("[BATTERY READ CHARGING STATE]: Read this from register 0x21: %d \r\n", v);
     if (s == HAL_OK) *st = (ChargerState)(v & 0x07U);
     return s;
 }
@@ -109,8 +118,55 @@ HAL_StatusTypeDef BatteryReader_IsChargerPluggedIn(I2C_HandleTypeDef *hi2c, uint
 {
     uint8_t v;
     HAL_StatusTypeDef s = rd8(hi2c, REG_CHARGER_STATUS_2, &v);
+    printf("[BATTERY READ IS CHARGER PLUGGED IN]: Read this from register 0x22: %d \r\n", v);
     if (s == HAL_OK) *pg = (uint8_t)((v >> 7) & 1U);
     return s;
+}
+
+HAL_StatusTypeDef BatteryReader_SetTempThreshold(I2C_HandleTypeDef *hi2c, uint8_t bytes) {
+	printf("Attempting to write to temp threshold register \r\n");
+	// 232
+	HAL_StatusTypeDef s = wr8(hi2c, REG_CHARGING_TEMP_THRESHOLD, 0b11101000);
+
+	uint8_t v;
+	HAL_StatusTypeDef s2 = rd8(hi2c, REG_CHARGING_TEMP_THRESHOLD, &v);
+    printf("[TEMP THRESHOLD REGISTER]: Read this from register 0x1b: %d \r\n", v);
+
+    if(s2 != HAL_OK) { printf("Temp threshold read failed!"); }
+
+
+	if (s == HAL_OK) {
+		return s;
+	}
+	else {
+		printf("Write failed! \r\n");
+		return s;
+	}
+}
+
+HAL_StatusTypeDef BatteryReader_ReadChargeStatus3_And_Fault_Status(I2C_HandleTypeDef *hi2c) {
+	uint8_t v1;
+	uint8_t v2;
+	uint8_t v3;
+	HAL_StatusTypeDef s1 = rd8(hi2c, REG_CHARGE_STATUS_3, &v1);
+	HAL_StatusTypeDef s2 = rd8(hi2c, REG_CHARGE_STATUS_3, &v2);
+	HAL_StatusTypeDef s3 = rd8(hi2c, 0x1C, &v3);
+
+	printf("[CHARGE STATUS 3]: %d \r\n", v1);
+	printf("[FAULT STATUS]: %d \r\n", v2);
+	printf("[CHARGE REGION BEHAVIOR]: %d \r\n", v3);
+
+	HAL_StatusTypeDef s = wr8(hi2c, 0x1C, 0b01010110);
+	if (s != HAL_OK) { printf("Write failed! \r\n"); }
+
+
+
+	if ( (s1 != HAL_OK) | (s2 != HAL_OK) | (s3 != HAL_OK) ){
+		printf("A read failed! \r\n");
+		return s1;
+	}
+
+	return s1;
 }
 
 const char *BatteryReader_StateName(ChargerState st)

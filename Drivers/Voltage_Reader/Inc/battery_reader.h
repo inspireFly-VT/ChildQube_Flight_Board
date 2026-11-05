@@ -17,6 +17,7 @@
 
 #include "main.h"
 #include <stdint.h>
+#include <stdio.h>
 
 /* BQ25756E 7-bit address is 0x6A (the non-E BQ25756 is 0x6B).
  * Shifted left for STM32 HAL. */
@@ -49,6 +50,14 @@ HAL_StatusTypeDef BatteryReader_ReadState(I2C_HandleTypeDef *hi2c, ChargerState 
 
 /* Power-good flag (REG0x22 bit 7): 1 = charger input is valid. */
 HAL_StatusTypeDef BatteryReader_IsChargerPluggedIn(I2C_HandleTypeDef *hi2c, uint8_t *pg);
+
+// Change battery charging temperature threshold
+HAL_StatusTypeDef BatteryReader_SetTempThreshold(I2C_HandleTypeDef *hi2c, uint8_t bytes);
+
+// Read these things
+HAL_StatusTypeDef BatteryReader_ReadChargeStatus3_And_Fault_Status(I2C_HandleTypeDef *hi2c);
+
+
 
 /* Human-readable name for a charge state. */
 const char *BatteryReader_StateName(ChargerState st);
