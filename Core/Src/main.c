@@ -75,7 +75,173 @@ static void MX_LPUART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define CHARGER_ADDR        (0x6A << 1)   /* BQ25756E on I2C2 */
+#define REG_TS_CONTROL      0x1C
+#define TS_CONTROL_DEFAULT  0x57          /* temperature check ON (BQ25756E power-on default) */
+#define TS_CONTROL_TS_OFF   0x56          /* same, with EN_TS (bit 0) cleared        */
 
+/* Prints every charger register (0x00-0x3D) in hex, 16 per line. Read-only. */
+static void dump_charger_registers(void)
+{
+    printf("Charger registers 0x00-0x3D:\r\n");
+    for (uint8_t reg = 0x00; reg <= 0x3D; reg++) {
+        uint8_t val;
+        if (HAL_I2C_Mem_Read(&hi2c2, CHARGER_ADDR, reg, I2C_MEMADD_SIZE_8BIT, &val, 1, 100) != HAL_OK) {
+            printf("\r\nread failed at 0x%02X\r\n", reg);
+            return;
+        }
+        printf("%02X%s", val, (reg % 16 == 15) ? "\r\n" : " ");
+    }
+    printf("\r\n");
+}
+
+/* Writes the charger's TS control register (0x1C) and reads it back. */
+static HAL_StatusTypeDef charger_write_ts_control(uint8_t value)
+{
+    uint8_t val;
+    HAL_StatusTypeDef s;
+
+    s = HAL_I2C_Mem_Read(&hi2c2, CHARGER_ADDR, REG_TS_CONTROL, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
+    if (s != HAL_OK) return s;
+    printf("REG 0x1C before: 0x%02X\r\n", val);
+    if (val != TS_CONTROL_DEFAULT && val != TS_CONTROL_TS_OFF)
+        printf("Note: 0x1C was 0x%02X (not the default 0x57 or 0x56)\r\n", val);
+
+    s = HAL_I2C_Mem_Write(&hi2c2, CHARGER_ADDR, REG_TS_CONTROL, I2C_MEMADD_SIZE_8BIT, &value, 1, 100);
+    if (s != HAL_OK) return s;
+
+    s = HAL_I2C_Mem_Read(&hi2c2, CHARGER_ADDR, REG_TS_CONTROL, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
+    if (s == HAL_OK)
+        printf("REG 0x1C after:  0x%02X (temperature check %s)\r\n", val, (val & 1U) ? "ON" : "OFF");
+    return s;
+}
+
+/* BENCH TEST ONLY: nothing stops charging if the cells overheat. */
+__attribute__((unused))
+static HAL_StatusTypeDef charger_disable_temperature_check(void)
+{
+    return charger_write_ts_control(TS_CONTROL_TS_OFF);
+}
+
+/* ---- Safe charge limits + ignore the ICHG pin -------------------------------
+ * Register map: TI BQ25756 datasheet (non-E; E assumed identical here).
+ * 16-bit registers: low byte at the address, high byte at address + 1.
+ * Current fields sit in bits 10:2 (or 9:2) with 50 mA per step (5 mOhm sense).
+ */
+#define REG_ICHG            0x02    /* charge current limit, min 400 mA      */
+#define REG_IPRECHG         0x10    /* pre-charge current, min 250 mA        */
+#define REG_ITERM           0x12    /* termination current, min 250 mA       */
+#define REG_TIMER_CONTROL   0x15    /* WATCHDOG = bits 5:4                   */
+#define REG_PIN_CONTROL     0x18    /* EN_ICHG_PIN = bit 7                   */
+
+#define CHARGE_CURRENT_MA       400U  /* CHECK against the cells' datasheet */
+#define PRECHARGE_CURRENT_MA    250U
+#define TERM_CURRENT_MA         250U
+
+static HAL_StatusTypeDef charger_write16(uint8_t reg, uint16_t value)
+{
+    uint8_t b[2] = { (uint8_t)(value & 0xFFU), (uint8_t)(value >> 8) };
+    return HAL_I2C_Mem_Write(&hi2c2, CHARGER_ADDR, reg, I2C_MEMADD_SIZE_8BIT, b, 2, 100);
+}
+
+static HAL_StatusTypeDef charger_read16(uint8_t reg, uint16_t *value)
+{
+    uint8_t b[2];
+    HAL_StatusTypeDef s = HAL_I2C_Mem_Read(&hi2c2, CHARGER_ADDR, reg, I2C_MEMADD_SIZE_8BIT, b, 2, 100);
+    if (s == HAL_OK) *value = (uint16_t)((uint16_t)b[1] << 8 | b[0]);
+    return s;
+}
+
+static HAL_StatusTypeDef charger_write8(uint8_t reg, uint8_t value)
+{
+    return HAL_I2C_Mem_Write(&hi2c2, CHARGER_ADDR, reg, I2C_MEMADD_SIZE_8BIT, &value, 1, 100);
+}
+
+static HAL_StatusTypeDef charger_read8(uint8_t reg, uint8_t *value)
+{
+    return HAL_I2C_Mem_Read(&hi2c2, CHARGER_ADDR, reg, I2C_MEMADD_SIZE_8BIT, value, 1, 100);
+}
+
+/* Resets every charger register to its power-on default (REG_RST, 0x19 bit 7) */
+static void charger_reset_to_defaults(void)
+{
+    uint8_t v;
+    if (charger_read8(0x19, &v) != HAL_OK) return;
+    charger_write8(0x19, (uint8_t)(v | 0x80U));
+    HAL_Delay(50);
+    printf("Charger registers reset to defaults\r\n");
+}
+
+/* Current in mA -> register value: (mA / 50) placed in bits starting at bit 2 */
+static uint16_t ma_to_reg(uint16_t ma)
+{
+    return (uint16_t)((ma / 50U) << 2);
+}
+
+static uint16_t reg_to_ma(uint16_t reg, uint16_t field_mask)
+{
+    return (uint16_t)(((reg & field_mask) >> 2) * 50U);
+}
+
+/* BENCH TEST: sets small charge currents, turns the watchdog off, then makes
+ * the charger ignore the ICHG pin (R19). Order matters: limits first, pin last,
+ * so the charger never runs on the 20 A register default. */
+static HAL_StatusTypeDef charger_set_safe_limits(void)
+{
+    HAL_StatusTypeDef s;
+    uint8_t v8;
+    uint16_t v16;
+
+    /* 1. Watchdog off, otherwise it resets ICHG to 20 A every 40 s.
+     *    Read-modify-write: clear bits 5:4 only. */
+    if ((s = charger_read8(REG_TIMER_CONTROL, &v8)) != HAL_OK) return s;
+    if ((s = charger_write8(REG_TIMER_CONTROL, (uint8_t)(v8 & ~0x30U))) != HAL_OK) return s;
+
+    /* 2. Current limits */
+    if ((s = charger_write16(REG_ICHG,    ma_to_reg(CHARGE_CURRENT_MA)))    != HAL_OK) return s;
+    if ((s = charger_write16(REG_IPRECHG, ma_to_reg(PRECHARGE_CURRENT_MA))) != HAL_OK) return s;
+    if ((s = charger_write16(REG_ITERM,   ma_to_reg(TERM_CURRENT_MA)))      != HAL_OK) return s;
+
+    /* 3. Ignore the ICHG pin: clear EN_ICHG_PIN (bit 7), keep the rest */
+    if ((s = charger_read8(REG_PIN_CONTROL, &v8)) != HAL_OK) return s;
+    if ((s = charger_write8(REG_PIN_CONTROL, (uint8_t)(v8 & ~0x80U))) != HAL_OK) return s;
+
+    /* 4. Read everything back */
+    if (charger_read16(REG_ICHG, &v16) == HAL_OK)
+        printf("Charge current limit: %u mA (0x%04X)\r\n", (unsigned)reg_to_ma(v16, 0x07FCU), (unsigned)v16);
+    if (charger_read16(REG_IPRECHG, &v16) == HAL_OK)
+        printf("Pre-charge current:   %u mA (0x%04X)\r\n", (unsigned)reg_to_ma(v16, 0x03FCU), (unsigned)v16);
+    if (charger_read16(REG_ITERM, &v16) == HAL_OK)
+        printf("Termination current:  %u mA (0x%04X)\r\n", (unsigned)reg_to_ma(v16, 0x03FCU), (unsigned)v16);
+    if (charger_read8(REG_TIMER_CONTROL, &v8) == HAL_OK)
+        printf("Watchdog:             %s (0x15 = 0x%02X)\r\n", (v8 & 0x30U) ? "ON" : "OFF", v8);
+    if (charger_read8(REG_PIN_CONTROL, &v8) == HAL_OK)
+        printf("ICHG pin:             %s (0x18 = 0x%02X)\r\n", (v8 & 0x80U) ? "USED" : "IGNORED", v8);
+
+    return HAL_OK;
+}
+
+/* Starts a fresh charge cycle so the new settings apply from the beginning.
+ * Toggles EN_CHG (register 0x17, bit 0) off and back on. */
+static void charger_restart_charge_cycle(void)
+{
+    uint8_t v;
+    if (charger_read8(0x17, &v) != HAL_OK) {
+        printf("Charge cycle restart failed (I2C error)\r\n");
+        return;
+    }
+    charger_write8(0x17, (uint8_t)(v & ~0x01U));  /* EN_CHG = 0 */
+    HAL_Delay(100);
+    charger_write8(0x17, (uint8_t)(v | 0x01U));   /* EN_CHG = 1 */
+    printf("Charge cycle restarted\r\n");
+}
+
+/* Restores the default (temperature check on). Not called yet; swap it in
+ * for the disable call in USER CODE 2 when bench testing is finished. */
+static HAL_StatusTypeDef charger_enable_temperature_check(void)
+{
+    return charger_write_ts_control(TS_CONTROL_DEFAULT);
+}
 /* USER CODE END 0 */
 
 /**
@@ -116,12 +282,28 @@ int main(void)
   MX_ADC1_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  charger_reset_to_defaults();
+
   if (BatteryReader_Init(&hi2c2) != HAL_OK) {
-       printf("Battery charger chip not found on I2C2\r\n");
-   } else {
-       printf("Battery charger chip found\r\n");
-   }
-   HAL_Delay(200);   // let the charger's ADC finish its first measurement
+      printf("Battery charger chip not found on I2C2\r\n");
+  } else {
+      printf("Battery charger chip found\r\n");
+  }
+  HAL_Delay(200);   // let the charger's ADC finish its first measurement
+
+  /* Fully default test: temperature check ON (0x1C = 0x57, the power-on
+   * default). Only use on a board whose TS pin reads ~55-60%, not one with
+   * the TS short, or the charger will report "too hot" and refuse to charge. */
+  if (charger_enable_temperature_check() != HAL_OK) {
+      printf("Could not change the temperature check (I2C error)\r\n");
+  }
+
+  HAL_Delay(5000);  // keep the startup lines on screen for 5 s
+
+  /* Clean-slate test: no other charger writes.
+  charger_set_safe_limits();
+  charger_restart_charge_cycle();
+  */
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,6 +330,8 @@ int main(void)
              printf("Charger plugged in: %s\r\n", plugged_in ? "yes" : "no");
 
          printf("----------------------\r\n");
+
+         dump_charger_registers();
          HAL_Delay(500);
 
     /* USER CODE END WHILE */
